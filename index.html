@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@700&family=Noto+Naskh+Arabic:wght@400;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@700&family=Noto+Naskh+Arabic:wght@400;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Source+Serif+4:wght@600;700&display=swap">
 <style>
 :root{
   --bg:#F3F5F1; --paper:#FFFFFF; --ink:#18221F; --muted:#5E6B66; --line:#DCE2DD;
@@ -121,6 +121,20 @@ mark{background:var(--gold-soft);color:inherit;border-radius:3px}
 .empty{text-align:center;color:var(--muted);padding:30px 10px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:.92rem;z-index:20;max-width:calc(100% - 32px);text-align:center}
 .confirm{background:var(--bad-soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.en{direction:ltr;text-align:left;font-family:"Source Serif 4",Georgia,serif}
+.q.en{font-size:1.9rem;line-height:1.3}
+.pos{font:600 .8rem var(--f-ui);color:var(--muted);direction:ltr}
+.wordrow{display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap}
+.say{font:inherit;font-size:.85rem;border:1px solid var(--line);background:var(--bg);color:var(--accent);border-radius:20px;padding:5px 12px;cursor:pointer}
+.ex{direction:ltr;text-align:left;font-family:"Source Serif 4",Georgia,serif;font-style:italic;color:var(--muted);margin:0;line-height:1.7;display:flex;gap:8px;align-items:flex-start}
+.ex .say{font-style:normal;padding:2px 8px;flex:none}
+.known{font:inherit;font-size:.9rem;background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;padding:4px;align-self:center}
+.goal{display:flex;flex-direction:column;gap:6px}
+.goal .bar i{background:var(--gold)}
+.goalrow{display:flex;justify-content:space-between;font-size:.88rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.quick{display:flex;gap:8px;flex-wrap:wrap}
+.quick button{flex:1;min-width:140px}
+.paused{font-size:.8rem;color:var(--gold);font-weight:600}
 @media (max-width:440px){.stats{grid-template-columns:repeat(2,1fr)} .q{font-size:1.18rem}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -152,9 +166,14 @@ mark{background:var(--gold-soft);color:inherit;border-radius:3px}
         <div class="stat"><b id="s-seen">0</b><span>بطاقة بدأتها</span></div>
         <div class="stat"><b id="s-master">0</b><span>ثابتة في الذاكرة</span></div>
       </div>
+      <div class="goal"><div class="goalrow"><span>وقت المراجعة اليوم</span><span id="goaltx">0 / 20 دقيقة</span></div><div class="bar"><i id="goalbar" style="width:0"></i></div></div>
       <button class="big" id="start">ابدأ جلسة اليوم</button>
+      <div class="quick" id="quick"></div>
       <div><div class="week" id="week"></div><div class="weekl" id="weekl"></div></div>
     </div>
+    <div class="box"><label class="set" for="cfg-goal">هدف المراجعة اليومي
+        <select id="cfg-goal"><option value="10">10 دقائق</option><option value="15">15 دقيقة</option><option value="20">20 دقيقة</option><option value="30">30 دقيقة</option><option value="45">45 دقيقة</option></select></label>
+      <p class="muted">يُحسب الوقت فقط والتطبيق مفتوح أمامك داخل الجلسة، ويتوقف تلقائيًا إذا أغلقته أو خرجت منه، ثم يكمل عند عودتك.</p></div>
     <p class="muted" style="margin:0">كل بطاقة تراها تعود إليك بعد مدة تطول كلما تذكرتها (يوم، ثم ثلاثة، ثم أسبوع، ثم شهر…)، وتعود سريعًا إذا نسيتها. الجلسة تجمع الكتب المفعّلة في المكتبة.</p>
   </section>
 
@@ -165,14 +184,17 @@ mark{background:var(--gold-soft);color:inherit;border-radius:3px}
       <div class="prog"><i id="progbar"></i></div>
       <span class="clock" id="clock">0:00</span>
     </div>
-    <div class="notice" id="tenmin" hidden><span>أتممت عشر دقائق. أحسنت!</span><span class="row"><button class="ghost" id="keep">أكمل البقية</button><button class="ghost" id="stop10">أنهِ الآن</button></span></div>
+    <div class="notice" id="tenmin" hidden><span id="goalmsg">أتممت هدف اليوم. أحسنت!</span><span class="row"><button class="ghost" id="keep">أكمل البقية</button><button class="ghost" id="stop10">أنهِ الآن</button></span></div>
     <article class="card">
       <div class="crumb" id="crumb"></div>
-      <p class="q" id="q"></p>
+      <div class="wordrow"><p class="q" id="q"></p><button class="say" id="sayq" hidden>🔊 انطق</button></div>
+      <span class="pos" id="pos" hidden></span>
       <p class="a" id="a" hidden></p>
+      <p class="ex" id="ex" hidden><button class="say" id="sayex">🔊</button><span id="extx"></span></p>
       <details class="ctx" id="ctx" hidden><summary>من ملخص هذه الفقرة</summary><ul id="ctxl"></ul></details>
     </article>
     <button class="big" id="reveal">أظهر الجواب</button>
+    <button class="known" id="known" hidden>أعرف هذه مسبقًا، لا تكرّرها قريبًا</button>
     <div class="grades" id="grades" hidden>
       <button class="g0" data-g="0">نسيت<small id="iv0"></small></button>
       <button class="g1" data-g="1">صعب<small id="iv1"></small></button>
@@ -264,11 +286,12 @@ function hash(s){ var h=2166136261; for(var i=0;i<s.length;i++){ h^=s.charCodeAt
 
 /* ---------- progress (localStorage) ---------- */
 var LS='hifz-progress-v2';
-function blank(){ return {v:2, t:0, st:{streak:0,last:-1,hist:{}}, d:{}}; }
+function blank(){ return {v:2, t:0, goal:20, st:{streak:0,last:-1,hist:{},time:{}}, d:{}}; }
 var P = blank();
 try{ var raw=localStorage.getItem(LS); if(raw){ var x=JSON.parse(raw); if(x && x.v===2) P=x; } }catch(e){}
+if(!P.goal) P.goal=20; if(!P.st.time) P.st.time={};
 function save(){ P.t=Date.now(); try{ localStorage.setItem(LS, JSON.stringify(P)); }catch(e){ toast('تعذّر الحفظ: مساحة الجهاز ممتلئة'); } }
-function DP(id){ if(!P.d[id]) P.d[id]={s:{}, n:12, focus:-1, on:1, nt:[0,0]}; return P.d[id]; }
+function DP(id){ if(!P.d[id]){ var d=LIB[id]; P.d[id]={s:{}, n:(d&&d.newPerDay)||12, focus:-1, on:1, nt:[0,0]}; } return P.d[id]; }
 try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
 
 /* ---------- decks (IndexedDB) ---------- */
@@ -285,7 +308,7 @@ function index(d){
   d.cards.forEach(function(c,i){ d.byId[c[0]]=i; if(!d.meta[i]) d.meta[i]=[0,0]; });
   return d;
 }
-function addDeck(d){ LIB[d.id]=index(d); if(ORDER.indexOf(d.id)<0) ORDER.push(d.id); DP(d.id); }
+function addDeck(d){ LIB[d.id]=index(d); if(ORDER.indexOf(d.id)<0) ORDER.push(d.id); DP(d.id); ORDER.sort(function(a,b){ return (LIB[a].order||99)-(LIB[b].order||99); }); }
 function validDeck(d){ return d && typeof d.id==='string' && Array.isArray(d.ch) && Array.isArray(d.cards) && d.ch.length; }
 
 function parseText(txt, fname){
@@ -327,6 +350,7 @@ function stripIdx(d){ var o={}; for(var k in d){ if(k!=='meta'&&k!=='byId') o[k]
 /* ---------- scheduling (SM-2 style) ---------- */
 function preview(s, g){
   s = s || [0,0,250,0,0]; var iv=s[1], ef=s[2], reps=s[3];
+  if(g===4) return 120;
   if(g===0) return 1;
   if(reps===0) return g===3?4:1;
   if(g===1) return Math.max(iv+1, Math.round(iv*1.2));
@@ -336,7 +360,8 @@ function preview(s, g){
 function grade(dp, id, g){
   var t=today(), s=dp.s[id] || [0,0,250,0,0];
   var iv=preview(s,g), ef=s[2], reps=s[3], lap=s[4];
-  if(g===0){ reps=0; lap++; ef=Math.max(130,ef-20); }
+  if(g===4){ reps=3; ef=Math.max(ef,280); }
+  else if(g===0){ reps=0; lap++; ef=Math.max(130,ef-20); }
   else { reps++; if(g===1) ef=Math.max(130,ef-15); if(g===3) ef=Math.min(320,ef+15); }
   dp.s[id]=[t+iv, iv, ef, reps, lap];
 }
@@ -364,7 +389,10 @@ function renderToday(){
   $('s-streak').textContent=streak; $('s-due').textContent=due; $('s-seen').textContent=seen; $('s-master').textContent=master;
   $('ringfg').setAttribute('stroke-dashoffset',(263.9*(1-(total?seen/total:0))).toFixed(1));
   $('ringtx').textContent=(total?Math.round(100*seen/total):0)+'%';
+  var sec=P.st.time[t]||0, gm=P.goal; $('goaltx').textContent=Math.floor(sec/60)+' / '+gm+' دقيقة'; $('goalbar').style.width=Math.min(100,100*sec/(gm*60))+'%'; $('cfg-goal').value=String(gm);
+  var q=$('quick'); q.innerHTML=''; if(ORDER.length>1) activeIds().forEach(function(id){ var n=Math.min(dueOf(id).length,MAX_REV)+newOf(id,newLeft(id)).length; if(!n) return; var b=document.createElement('button'); b.className='ghost'; b.textContent=LIB[id].short||LIB[id].title; var sm=document.createElement('small'); sm.className='muted'; sm.textContent=' · '+n; b.appendChild(sm); b.addEventListener('click',function(){ startSession([id]); }); q.appendChild(b); });
   var dueN=Math.min(due,MAX_REV), doneToday=P.st.last===t;
+
   $('greet').textContent = doneToday ? 'أنجزت جلسة اليوم' : 'جلسة اليوم';
   if(!ORDER.length){ $('plan').textContent='المكتبة فارغة. افتح «المكتبة» لإضافة كتاب.'; $('start').disabled=true; $('start').textContent='لا توجد كتب بعد'; }
   else if(dueN+nw===0){ $('plan').textContent = doneToday ? 'لا شيء مستحق الآن. عد غدًا لتثبيت ما حفظت.' : 'لا توجد بطاقات مستحقة اليوم.'; $('start').disabled=true; $('start').textContent='لا شيء مستحق الآن'; }
@@ -373,6 +401,7 @@ function renderToday(){
   for(i=13;i>=0;i--){ h=P.st.hist[t-i]; if(h) mx=Math.max(mx,h[0]); }
   for(i=13;i>=0;i--){ h=P.st.hist[t-i]; var b=document.createElement('div'); if(h){ b.className='on'; b.style.height=Math.max(10,100*h[0]/mx)+'%'; } w.appendChild(b);
     var l=document.createElement('span'); l.textContent=i%2===0? DAYN[new Date((t-i)*86400000).getUTCDay()].slice(0,3):''; wl.appendChild(l); }
+  var saved=loadSes(); if(saved){ $('plan').textContent='لديك جلسة لم تكتمل: بقي '+saved.Q.length+' بطاقة.'; $('start').disabled=false; $('start').textContent='أكمل الجلسة'; }
 }
 
 /* ---------- views ---------- */
@@ -494,8 +523,18 @@ function fillChap(body,ci){
 }
 
 /* ---------- session ---------- */
-var Q=[], total=0, cur=null, t0=0, tick=null, reviewed=0, newSeen=0, warned=false;
+var Q=[], total=0, cur=null, t0=0, tick=null, reviewed=0, newSeen=0, warned=false, sesSec=0, lastTick=0;
+var SES='hifz-session-v1';
+function saveSes(){ try{ if(Q.length) localStorage.setItem(SES, JSON.stringify({day:today(),Q:Q,total:total,reviewed:reviewed,newSeen:newSeen,sec:sesSec})); else localStorage.removeItem(SES); }catch(e){} }
+function loadSes(){ try{ var s=JSON.parse(localStorage.getItem(SES)||'null'); if(s && s.day===today() && s.Q && s.Q.length){ s.Q=s.Q.filter(function(x){ return LIB[x.d] && LIB[x.d].byId[x.k]!==undefined; }); if(s.Q.length) return s; } }catch(e){} return null; }
+function addTime(sec){ var t=today(); P.st.time[t]=(P.st.time[t]||0)+sec; for(var k in P.st.time){ if(+k<t-120) delete P.st.time[k]; } }
+function startTimer(){ clearInterval(tick); lastTick=Date.now(); tick=setInterval(clock,1000); clock(); }
+function stopTimer(){ if(tick){ clock(); clearInterval(tick); tick=null; } }
+document.addEventListener('visibilitychange',function(){ if(!inSession) return; if(document.visibilityState==='hidden'){ stopTimer(); save(); saveSes(); } else startTimer(); });
+window.addEventListener('pagehide',function(){ if(inSession){ stopTimer(); save(); saveSes(); } });
+function resumeSession(s){ Q=s.Q; total=s.total; reviewed=s.reviewed; newSeen=s.newSeen; sesSec=s.sec||0; warned=(P.st.time[today()]||0)>=P.goal*60; inSession=true; $('tenmin').hidden=true; show('today'); nextCard(); startTimer(); }
 function startSession(ids){
+  try{ localStorage.removeItem(SES); }catch(e){}
   ids = ids || activeIds();
   var due=[], nn=[];
   ids.forEach(function(id){ due=due.concat(dueOf(id)); nn=nn.concat(newOf(id,newLeft(id))); });
@@ -503,24 +542,33 @@ function startSession(ids){
   Q=[]; var i=0,j=0;
   while(i<due.length||j<nn.length){ for(var k=0;k<3&&i<due.length;k++){ due[i].kind='rev'; Q.push(due[i++]); } if(j<nn.length){ nn[j].kind='new'; Q.push(nn[j++]); } }
   if(!Q.length){ toast('لا توجد بطاقات مستحقة الآن'); return; }
-  total=Q.length; reviewed=0; newSeen=0; warned=false; t0=Date.now(); inSession=true;
-  $('tenmin').hidden=true; show('today'); nextCard();
-  clearInterval(tick); tick=setInterval(clock,1000); clock();
+  total=Q.length; reviewed=0; newSeen=0; sesSec=0; warned=(P.st.time[today()]||0)>=P.goal*60; inSession=true;
+  $('tenmin').hidden=true; show('today'); nextCard(); saveSes(); startTimer();
 }
-function clock(){ var s=Math.floor((Date.now()-t0)/1000); $('clock').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); if(s>=600 && !warned && Q.length){ warned=true; $('tenmin').hidden=false; } }
+function clock(){
+  var now=Date.now(), d=Math.round((now-lastTick)/1000); lastTick=now;
+  if(d>0 && d<=5 && document.visibilityState==='visible'){ sesSec+=d; addTime(d); }
+  var s=P.st.time[today()]||0; $('clock').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+  if(s>=P.goal*60 && !warned && Q.length){ warned=true; $('goalmsg').textContent='أتممت هدف اليوم ('+P.goal+' دقيقة). أحسنت!'; $('tenmin').hidden=false; save(); }
+}
 function nextCard(){
   if(!Q.length){ endSession(); return; }
   cur=Q[0]; var d=LIB[cur.d], i=d.byId[cur.k], c=d.cards[i], m=d.meta[i], chp=d.ch[m[0]], sec=chp.secs[m[1]];
   var crumb=$('crumb'); crumb.innerHTML='';
   var tag=document.createElement('span'); tag.className='tag'+(cur.kind==='rev'?' rev':cur.kind==='again'?' again':''); tag.textContent=cur.kind==='new'?'جديدة':cur.kind==='again'?'إعادة':'مراجعة'; crumb.appendChild(tag);
   crumb.appendChild(document.createTextNode((ORDER.length>1? d.title+' › ':'')+chp.t+' › '+sec.t.replace(/^تتمة\s*/,'')));
-  $('q').textContent=c[1]; $('a').textContent=c[2]; $('a').hidden=true; $('ctx').hidden=true; $('ctx').open=false;
+  var en=d.lang==='en';
+  $('q').textContent=c[1]; $('q').className='q'+(en?' en':''); $('a').textContent=c[2]; $('a').hidden=true; $('ctx').hidden=true; $('ctx').open=false;
+  $('sayq').hidden=!en; $('pos').hidden=!(en&&c[4]); $('pos').textContent=en&&c[4]?({v:'verb · فعل',n:'noun · اسم',adj:'adjective · صفة',adv:'adverb · ظرف',phr:'phrase · تعبير',prep:'preposition · حرف جرّ',conj:'conjunction · أداة ربط'}[c[4]]||c[4]):'';
+  $('extx').textContent=c[3]||''; $('ex').hidden=true; $('known').hidden=cur.kind!=='new';
+  if(en && !speakOff) speak(c[1]);
   var ul=$('ctxl'); ul.innerHTML=''; sec.b.slice(0,14).forEach(function(b){ var li=document.createElement('li'); li.textContent=b.replace(/^§/,''); if(b[0]==='§') li.style.fontWeight='700'; ul.appendChild(li); });
   $('reveal').hidden=false; $('grades').hidden=true;
   $('progbar').style.width=(100*(total-Q.length)/Math.max(1,total))+'%';
 }
 function reveal(){
-  $('a').hidden=false; $('ctx').hidden=!$('ctxl').childNodes.length; $('reveal').hidden=true; $('grades').hidden=false;
+  var d=LIB[cur.d]; $('known').hidden=true;
+  $('a').hidden=false; $('ex').hidden=!$('extx').textContent; $('ctx').hidden=d.lang==='en' || !$('ctxl').childNodes.length; $('reveal').hidden=true; $('grades').hidden=false;
   var s=DP(cur.d).s[cur.k]; for(var g=0;g<4;g++) $('iv'+g).textContent = g===0?'الآن':fmtIv(preview(s,g));
 }
 function rate(g){
@@ -533,19 +581,27 @@ function rate(g){
   for(var k in P.st.hist){ if(+k<t-120) delete P.st.hist[k]; }
   reviewed++; if(wasNew) newSeen++;
   if(g===0){ var again={d:cur.d,k:cur.k,kind:'again'}; Q.splice(Math.min(Q.length,3),0,again); total++; }
-  save(); nextCard();
+  save(); nextCard(); saveSes();
 }
 function endSession(){
-  clearInterval(tick); inSession=false; cur=null;
-  var mins=Math.max(1,Math.round((Date.now()-t0)/60000));
+  stopTimer(); inSession=false; cur=null; saveSes(); save();
+  var mins=Math.max(1,Math.round(sesSec/60));
   $('donetx').textContent='راجعت '+reviewed+' بطاقة، منها '+newSeen+' جديدة، في '+mins+' دقيقة. سلسلتك الآن '+P.st.streak+' يوم.';
   $('p-session').hidden=true; $('p-today').hidden=true; $('p-done').hidden=false; window.scrollTo(0,0);
 }
-$('start').addEventListener('click',function(){ startSession(); });
+$('start').addEventListener('click',function(){ var s=loadSes(); if(s) resumeSession(s); else startSession(); });
+$('cfg-goal').addEventListener('change',function(){ P.goal=+this.value; save(); renderToday(); });
 $('reveal').addEventListener('click',reveal);
 $('grades').addEventListener('click',function(e){ var b=e.target.closest('button'); if(b) rate(+b.dataset.g); });
-$('quit').addEventListener('click',function(){ Q=[]; endSession(); });
-$('stop10').addEventListener('click',function(){ Q=[]; endSession(); });
+$('known').addEventListener('click',function(){ rate(4); });
+var speakOff=false, enVoice=null;
+function pickVoice(){ try{ var vs=speechSynthesis.getVoices(); enVoice=vs.filter(function(v){return /^en[-_]US/i.test(v.lang);})[0]||vs.filter(function(v){return /^en/i.test(v.lang);})[0]||null; }catch(e){} }
+try{ pickVoice(); speechSynthesis.onvoiceschanged=pickVoice; }catch(e){}
+function speak(t){ try{ speechSynthesis.cancel(); var u=new SpeechSynthesisUtterance(t.replace(/\s*\(.*?\)\s*/g,' ')); u.lang='en-US'; if(enVoice) u.voice=enVoice; u.rate=0.9; speechSynthesis.speak(u); }catch(e){} }
+$('sayq').addEventListener('click',function(){ speak($('q').textContent); });
+$('sayex').addEventListener('click',function(){ speak($('extx').textContent); });
+$('quit').addEventListener('click',function(){ endSession(); });
+$('stop10').addEventListener('click',function(){ endSession(); });
 $('keep').addEventListener('click',function(){ $('tenmin').hidden=true; });
 $('back').addEventListener('click',function(){ show('today'); });
 document.addEventListener('keydown',function(e){

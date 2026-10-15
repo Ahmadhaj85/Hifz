@@ -1,5 +1,5 @@
 // Offline support: app shell cached on install; deck list is network-first; everything else cache-first.
-const VERSION = 'hifz-v1';
+const VERSION = 'hifz-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
