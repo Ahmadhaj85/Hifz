@@ -76,6 +76,7 @@ def parse(data, label):
         out.append(it)
     return out
 
+os.makedirs("articles", exist_ok=True)
 report = {}
 for cat, feeds in SOURCES.items():
     arts, seen = [], set()
