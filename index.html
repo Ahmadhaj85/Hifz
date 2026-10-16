@@ -282,8 +282,8 @@ mark{background:var(--gold-soft);color:inherit;border-radius:3px}
       <label class="set" for="cfg-theme">المظهر
         <select id="cfg-theme"><option value="">حسب الجهاز</option><option value="light">فاتح</option><option value="dark">داكن</option></select>
       </label>
-      <label class="set" for="cfg-gkey" style="align-items:stretch;flex-direction:column">مفتاح The Guardian (اختياري، يرفع حدّ المقالات اليومي)
-        <input type="text" id="cfg-gkey" placeholder="test" dir="ltr" autocomplete="off">
+      <label class="set" for="cfg-gkey" style="align-items:stretch;flex-direction:column">مفتاح The Guardian (اختياري، لقسم The Guardian)
+        <input type="text" id="cfg-gkey" placeholder="الصق المفتاح هنا" dir="ltr" autocomplete="off">
       </label>
       <p class="muted">التقدّم وكلماتك محفوظة على هذا الجهاز. احفظ نسخة احتياطية من حين لآخر.</p>
       <div class="row">
@@ -712,7 +712,7 @@ $('sayq').addEventListener('click',function(){ speak($('q').textContent); });
 $('sayex').addEventListener('click',function(){ speak($('extx').textContent); });
 
 /* ---------- reading (Guardian, Wikipedia, pasted texts) ---------- */
-var CATS=[['world','العالم'],['politics','سياسة'],['business','اقتصاد وأعمال'],['technology','تقنية'],['science','علوم'],['environment','بيئة'],['culture','ثقافة'],['commentisfree','رأي'],['sport','رياضة'],['wiki','موسوعة'],['mine','نصوصي']];
+var CATS=[['world','العالم'],['politics','سياسة'],['business','اقتصاد وأعمال'],['technology','تقنية'],['science','علوم وصحة'],['environment','بيئة'],['culture','ثقافة وفنون'],['education','تعليم'],['investigations','تحقيقات'],['guardian','The Guardian'],['wiki','موسوعة'],['mine','نصوصي']];
 var curCat='world', ARTS={}, curArt=null;
 (function(){ var box=$('cats'); CATS.forEach(function(c){ var b=document.createElement('button'); b.textContent=c[1]; b.dataset.cat=c[0]; b.setAttribute('aria-pressed',String(c[0]===curCat)); b.addEventListener('click',function(){ curCat=c[0]; box.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed',String(x.dataset.cat===curCat)); }); renderRead(); }); box.appendChild(b); }); })();
 function gkey(){ return P.gkey||'test'; }
@@ -723,7 +723,9 @@ function loadCat(cat){
   var p;
   if(cat==='mine') p=dbAll('texts').then(function(xs){ return xs.sort(function(a,b){ return b.t-a.t; }).map(function(x){ return {id:x.id,title:x.title,trail:x.paras[0].slice(0,160),src:'نصّ ملصوق',date:new Date(x.t).toISOString().slice(0,10),paras:x.paras,words:x.paras.join(' ').split(/\s+/).length}; }); });
   else if(cat==='wiki') p=wikiList();
-  else p=fetch('https://content.guardianapis.com/search?section='+cat+'&show-fields=trailText,wordcount,body&page-size=20&order-by=newest&api-key='+encodeURIComponent(gkey())).then(function(r){ if(!r.ok) throw r.status; return r.json(); }).then(function(j){
+  else if(cat!=='guardian') p=fetch('articles/'+cat+'.json',{cache:'no-cache'}).then(function(r){ if(!r.ok) throw 'nofeed'; return r.json(); }).then(function(j){ return (j.articles||[]).map(function(a){ return {id:a.id,title:a.title,trail:a.paras[0].slice(0,170),src:a.src+(a.author?' · '+a.author:''),date:a.date,url:a.url,paras:a.paras,words:a.words}; }); });
+  else if(!P.gkey) p=Promise.reject('nokey');
+  else p=fetch('https://content.guardianapis.com/search?show-fields=trailText,wordcount,body&page-size=25&order-by=newest&api-key='+encodeURIComponent(gkey())).then(function(r){ if(!r.ok) throw r.status; return r.json(); }).then(function(j){
     return (j.response.results||[]).filter(function(x){ return x.fields && x.fields.body; }).map(function(x){ return {id:'g:'+x.id,title:x.webTitle,trail:stripHtml(x.fields.trailText||''),src:'The Guardian · '+x.sectionName,date:(x.webPublicationDate||'').slice(0,10),url:x.webUrl,html:x.fields.body,words:+x.fields.wordcount||0}; });
   });
   return p.then(function(list){ if(cat!=='mine') ARTS[cat]=list; return list; });
@@ -736,7 +738,7 @@ function wikiList(){
 }
 function renderRead(){
   var box=$('arts'); $('pastebox').hidden=curCat!=='mine';
-  $('credit').textContent = curCat==='wiki' ? 'المحتوى من ويكيبيديا (CC BY-SA).' : curCat==='mine' ? '' : 'المقالات من The Guardian عبر واجهتها المفتوحة، مع رابط المصدر في كل مقال.';
+  $('credit').textContent = curCat==='wiki' ? 'المحتوى من ويكيبيديا (CC BY-SA).' : curCat==='mine' ? '' : curCat==='guardian' ? 'من The Guardian عبر واجهتها المفتوحة بمفتاحك الخاص.' : 'مقالات كاملة من مصادر تسمح بإعادة النشر (The Conversation وGlobal Voices وProPublica)، تُحدَّث كل 6 ساعات، مع رابط المصدر في كل مقال.';
   box.innerHTML='<p class="empty">جارٍ التحميل…</p>';
   var cat=curCat;
   loadCat(cat).then(function(list){
@@ -750,7 +752,7 @@ function renderRead(){
       b.addEventListener('click',function(){ openArticle(a); });
       box.appendChild(b);
     });
-  }).catch(function(e){ if(cat!==curCat) return; box.innerHTML=''; var p=document.createElement('p'); p.className='empty'; p.textContent= (e===429||e===403) ? 'وصلت حدّ المقالات المجاني اليوم. أضف مفتاح The Guardian المجاني من «المكتبة» ← الإعدادات.' : 'تعذّر جلب المقالات. تحقق من الاتصال ثم أعد المحاولة.'; box.appendChild(p); });
+  }).catch(function(e){ if(cat!==curCat) return; box.innerHTML=''; var p=document.createElement('p'); p.className='empty'; p.textContent= e==='nokey' ? 'هذا القسم يحتاج مفتاح The Guardian المجاني: سجّل في open-platform.theguardian.com ثم الصقه في «المكتبة» ← الإعدادات.' : (e===429||e===403||e===401) ? 'رفضت The Guardian المفتاح أو وصلتَ الحدّ اليومي. تحقق من المفتاح في الإعدادات.' : e==='nofeed' ? 'لا توجد مقالات في هذا القسم بعد. تُحدَّث المقالات كل 6 ساعات.' : 'تعذّر جلب المقالات. تحقق من الاتصال ثم أعد المحاولة.'; box.appendChild(p); });
 }
 $('paste-go').addEventListener('click',function(){
   var txt=$('paste-text').value.trim(); if(txt.length<20){ toast('الصق نصًّا أطول'); return; }
