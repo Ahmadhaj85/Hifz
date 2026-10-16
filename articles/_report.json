@@ -1,0 +1,19 @@
+{
+ "https://globalvoices.org/feed/": 15,
+ "https://theconversation.com/global/articles.atom": 49,
+ "https://theconversation.com/us/politics/articles.atom": 25,
+ "https://theconversation.com/uk/politics/articles.atom": 25,
+ "https://theconversation.com/us/business/articles.atom": 25,
+ "https://theconversation.com/uk/business/articles.atom": 25,
+ "https://theconversation.com/us/technology/articles.atom": 25,
+ "https://theconversation.com/uk/technology/articles.atom": 25,
+ "https://theconversation.com/us/science/articles.atom": "ERR HTTPError: HTTP Error 404: Not Found",
+ "https://theconversation.com/uk/science/articles.atom": "ERR HTTPError: HTTP Error 404: Not Found",
+ "https://theconversation.com/us/health/articles.atom": 25,
+ "https://theconversation.com/us/environment/articles.atom": 25,
+ "https://theconversation.com/uk/environment/articles.atom": 25,
+ "https://theconversation.com/us/arts/articles.atom": 25,
+ "https://theconversation.com/uk/arts/articles.atom": 25,
+ "https://theconversation.com/us/education/articles.atom": 25,
+ "https://www.propublica.org/feeds/propublica/main": 20
+}
