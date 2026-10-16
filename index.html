@@ -164,6 +164,11 @@ mark{background:var(--gold-soft);color:inherit;border-radius:3px}
 .hit{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-family:var(--f-text);line-height:1.85;unicode-bidi:plaintext}
 .hit .crumb{font-family:var(--f-ui);margin-bottom:4px}
 .empty{text-align:center;color:var(--muted);padding:30px 10px}
+.srcbox{display:flex;flex-direction:column;gap:8px;border-top:1px dashed var(--line);padding-top:12px}
+.viewer{position:fixed;inset:0;z-index:35;background:var(--bg);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+.vbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:10px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line);background:var(--paper)}
+.vbody{flex:1;overflow:auto;padding:12px;display:flex;justify-content:center;align-items:flex-start;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+.vbody canvas{max-width:100%;height:auto;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.15)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:.92rem;z-index:40;max-width:calc(100% - 32px);text-align:center}
 .confirm{background:var(--bad-soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 @media (max-width:440px){.stats{grid-template-columns:repeat(2,1fr)} .q{font-size:1.18rem} nav.tabs button{font-size:.86rem}}
@@ -219,7 +224,10 @@ mark{background:var(--gold-soft);color:inherit;border-radius:3px}
       <span class="pos" id="pos" hidden></span>
       <p class="a" id="a" hidden></p>
       <p class="ex" id="ex" hidden><button class="say" id="sayex">🔊</button><span id="extx"></span></p>
-      <details class="ctx" id="ctx" hidden><summary>من ملخص هذه الفقرة</summary><ul id="ctxl"></ul></details>
+      <div class="srcbox" id="srcbox" hidden>
+        <div class="row" style="justify-content:space-between"><span class="muted" id="srcpg"></span><button class="ghost" id="srcopen">اعرض صفحة الكتاب</button></div>
+        <details class="ctx" id="ctx"><summary>من الملخص: نقاط مرتبطة بهذا السؤال</summary><ul id="ctxl"></ul></details>
+      </div>
     </article>
     <button class="big" id="reveal">أظهر الجواب</button>
     <button class="known" id="known" hidden>أعرف هذه مسبقًا، لا تكرّرها قريبًا</button>
@@ -311,6 +319,7 @@ mark{background:var(--gold-soft);color:inherit;border-radius:3px}
       </label>
       <p class="muted" id="deck-eta"></p>
       <button class="big" id="deck-study">راجع هذا الكتاب فقط</button>
+      <div class="row" id="deck-pdfrow" hidden><button class="ghost" id="deck-pdf">أرفق ملف الكتاب (PDF)</button><span class="muted" id="deck-pdftx"></span></div>
       <div class="row"><button class="ghost danger" id="deck-reset">تصفير التقدّم</button><button class="ghost danger" id="deck-del">حذف الكتاب</button></div>
       <div class="confirm" id="deck-confirm" hidden><span id="deck-confirm-tx"></span><div class="row"><button class="ghost danger" id="deck-yes">نعم، تأكيد</button><button class="ghost" id="deck-no">تراجع</button></div></div>
     </div>
@@ -339,6 +348,11 @@ mark{background:var(--gold-soft);color:inherit;border-radius:3px}
     <button class="ghost" id="sh-known" style="flex:1">أعرفها</button>
   </div>
 </div></div>
+<div class="viewer" id="viewer" hidden>
+  <div class="vbar"><button class="ghost" id="v-close">إغلاق</button><span class="row"><button class="ghost" id="v-prev" aria-label="الصفحة السابقة">‹ السابقة</button><span id="v-lbl" class="muted"></span><button class="ghost" id="v-next" aria-label="الصفحة التالية">التالية ›</button></span></div>
+  <div class="vbody" id="v-body"><canvas id="v-canvas"></canvas><p class="empty" id="v-msg" hidden></p></div>
+</div>
+<input type="file" id="pdfin" accept="application/pdf,.pdf" hidden>
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -365,7 +379,7 @@ try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persis
 
 /* ---------- IndexedDB: decks + saved texts ---------- */
 var LIB = {}, ORDER = [], idb=null;
-function openDB(){ return new Promise(function(res){ try{ var r=indexedDB.open('hifz',2); r.onupgradeneeded=function(){ var db=r.result; if(!db.objectStoreNames.contains('decks')) db.createObjectStore('decks',{keyPath:'id'}); if(!db.objectStoreNames.contains('texts')) db.createObjectStore('texts',{keyPath:'id'}); }; r.onsuccess=function(){ idb=r.result; res(); }; r.onerror=function(){ res(); }; }catch(e){ res(); } }); }
+function openDB(){ return new Promise(function(res){ try{ var r=indexedDB.open('hifz',3); r.onupgradeneeded=function(){ var db=r.result; ['decks','texts','pdfs'].forEach(function(n){ if(!db.objectStoreNames.contains(n)) db.createObjectStore(n,{keyPath:'id'}); }); }; r.onsuccess=function(){ idb=r.result; res(); }; r.onerror=function(){ res(); }; }catch(e){ res(); } }); }
 function dbAll(st){ return new Promise(function(res){ if(!idb) return res([]); var out=[]; try{ var c=idb.transaction(st).objectStore(st).openCursor(); c.onsuccess=function(){ var k=c.result; if(k){ out.push(k.value); k.continue(); } else res(out); }; c.onerror=function(){ res(out); }; }catch(e){ res(out); } }); }
 function dbPut(st,d){ return new Promise(function(res){ if(!idb) return res(); try{ var tx=idb.transaction(st,'readwrite'); tx.objectStore(st).put(d); tx.oncomplete=res; tx.onerror=res; }catch(e){ res(); } }); }
 function dbDel(st,id){ return new Promise(function(res){ if(!idb) return res(); try{ var tx=idb.transaction(st,'readwrite'); tx.objectStore(st).delete(id); tx.oncomplete=res; tx.onerror=res; }catch(e){ res(); } }); }
@@ -567,6 +581,7 @@ function renderDeck(){
   d.ch.forEach(function(c,i){ var n=0; c.secs.forEach(function(x){ n+=x.c.length; }); if(!n||d.ch.length<2) return; var o2=document.createElement('option'); o2.value=String(i); o2.textContent='ابدأ بـ: '+c.t; sel.appendChild(o2); });
   sel.value=String(dp.focus); if(sel.selectedIndex<0) sel.value='-1';
   var left=s.total-s.seen; $('deck-eta').textContent= left>0 ? ('بقي '+left+' بطاقة لم تبدأها؛ بمعدل '+dp.n+' يوميًا تُنهيها في نحو '+Math.ceil(left/dp.n)+' يومًا (والمراجعة المستمرة تسرّع ذلك).') : 'بدأت كل البطاقات. استمر في المراجعة.';
+  $('deck-pdfrow').hidden=!d.pg; if(d.pg) pdfStatus(curDeck).then(function(k){ $('deck-pdftx').textContent=k?'الملف مرفق على هذا الجهاز ✓':'لعرض صفحة المصدر لكل سؤال'; $('deck-pdf').textContent=k?'استبدال ملف الكتاب':'أرفق ملف الكتاب (PDF)'; });
   $('deck-confirm').hidden=true; $('deck-sumh').textContent=d.id===MY?'كلماتك':'الملخص';
   if(built!==curDeck){ buildChaps(); built=curDeck; } else updateChapPills();
 }
@@ -662,7 +677,9 @@ function nextCard(){
   $('q').textContent=c[1]; $('q').className='q'+(en?' en':''); $('a').textContent=c[2]; $('a').hidden=true; $('ctx').hidden=true; $('ctx').open=false;
   $('sayq').hidden=!en; $('pos').hidden=!(en&&c[4]); $('pos').textContent=en&&c[4]?posName(c[4]):'';
   $('extx').textContent=c[3]||''; $('ex').hidden=true; $('known').hidden=!(cur.kind==='new'||cur.kind==='extra');
-  var ul=$('ctxl'); ul.innerHTML=''; if(!en) sec.b.slice(0,14).forEach(function(b){ var li=document.createElement('li'); li.textContent=b.replace(/^§/,''); if(b[0]==='§') li.style.fontWeight='700'; ul.appendChild(li); });
+  var ul=$('ctxl'); ul.innerHTML=''; curPage=d.pg?d.pg[i]:0;
+  if(!en){ var refs=d.rb&&d.rb[i]; if(refs&&refs.length) refs.forEach(function(r){ var b=((d.ch[r[0]]||{}).secs||[])[r[1]]; b=b&&b.b[r[2]]; if(b){ var li=document.createElement('li'); li.textContent=b.replace(/^§/,''); ul.appendChild(li); } }); else sec.b.slice(0,6).forEach(function(b){ var li=document.createElement('li'); li.textContent=b.replace(/^§/,''); ul.appendChild(li); }); }
+  $('srcpg').textContent=curPage?('المصدر: الصفحة '+curPage+' من ملف الكتاب'):''; $('srcopen').hidden=!curPage; $('srcbox').hidden=true;
   $('reveal').hidden=false; $('grades').hidden=true;
   $('sesinfo').textContent='راجعت '+reviewed+' · جديدة '+newSeen;
   if(en) speak(c[1]);
@@ -670,7 +687,7 @@ function nextCard(){
 function posName(p){ return ({v:'verb · فعل',n:'noun · اسم',adj:'adjective · صفة',adv:'adverb · ظرف',phr:'phrase · تعبير',prep:'preposition · حرف جرّ',conj:'conjunction · أداة ربط',verb:'verb · فعل',noun:'noun · اسم',adjective:'adjective · صفة',adverb:'adverb · ظرف'}[p]||p); }
 function reveal(){
   var d=LIB[cur.d]; $('known').hidden=true;
-  $('a').hidden=false; $('ex').hidden=!$('extx').textContent; $('ctx').hidden=!$('ctxl').childNodes.length;
+  $('a').hidden=false; $('ex').hidden=!$('extx').textContent; $('srcbox').hidden=!(curPage||$('ctxl').childNodes.length); $('ctx').hidden=!$('ctxl').childNodes.length;
   $('reveal').hidden=true; $('grades').hidden=false;
   var s=DP(cur.d).s[cur.k]; for(var g=0;g<4;g++) $('iv'+g).textContent = g===0?'الآن':fmtIv(preview(s,g));
 }
@@ -719,16 +736,16 @@ function gkey(){ return P.gkey||'test'; }
 function stripHtml(h){ var d=document.createElement('div'); d.innerHTML=h; return d.textContent||''; }
 function htmlParas(h){ var d=document.createElement('div'); d.innerHTML=h; var out=[]; d.querySelectorAll('p,h2,li').forEach(function(p){ var t=p.textContent.replace(/\s+/g,' ').trim(); if(t.length>1) out.push(t); }); if(!out.length) out=(d.textContent||'').split(/\n{2,}/).map(function(x){return x.trim();}).filter(Boolean); return out; }
 function loadCat(cat){
-  if(ARTS[cat]) return Promise.resolve(ARTS[cat]);
+  if(ARTS[cat] && Date.now()-ARTS[cat].at<3600e3) return Promise.resolve(ARTS[cat]);
   var p;
   if(cat==='mine') p=dbAll('texts').then(function(xs){ return xs.sort(function(a,b){ return b.t-a.t; }).map(function(x){ return {id:x.id,title:x.title,trail:x.paras[0].slice(0,160),src:'نصّ ملصوق',date:new Date(x.t).toISOString().slice(0,10),paras:x.paras,words:x.paras.join(' ').split(/\s+/).length}; }); });
   else if(cat==='wiki') p=wikiList();
-  else if(cat!=='guardian') p=fetch('articles/'+cat+'.json',{cache:'no-cache'}).then(function(r){ if(!r.ok) throw 'nofeed'; return r.json(); }).then(function(j){ return (j.articles||[]).map(function(a){ return {id:a.id,title:a.title,trail:a.paras[0].slice(0,170),src:a.src+(a.author?' · '+a.author:''),date:a.date,url:a.url,paras:a.paras,words:a.words}; }); });
+  else if(cat!=='guardian') p=fetch('articles/'+cat+'.json',{cache:'no-cache'}).then(function(r){ if(!r.ok) throw 'nofeed'; return r.json(); }).then(function(j){ UPD[cat]=j.updated; return (j.articles||[]).map(function(a){ return {id:a.id,title:a.title,trail:a.paras[0].slice(0,170),src:a.src+(a.author?' · '+a.author:''),date:a.date,url:a.url,paras:a.paras,words:a.words}; }); });
   else if(!P.gkey) p=Promise.reject('nokey');
   else p=fetch('https://content.guardianapis.com/search?show-fields=trailText,wordcount,body&page-size=25&order-by=newest&api-key='+encodeURIComponent(gkey())).then(function(r){ if(!r.ok) throw r.status; return r.json(); }).then(function(j){
     return (j.response.results||[]).filter(function(x){ return x.fields && x.fields.body; }).map(function(x){ return {id:'g:'+x.id,title:x.webTitle,trail:stripHtml(x.fields.trailText||''),src:'The Guardian · '+x.sectionName,date:(x.webPublicationDate||'').slice(0,10),url:x.webUrl,html:x.fields.body,words:+x.fields.wordcount||0}; });
   });
-  return p.then(function(list){ if(cat!=='mine') ARTS[cat]=list; return list; });
+  return p.then(function(list){ if(cat!=='mine'){ list.at=Date.now(); ARTS[cat]=list; } return list; });
 }
 function wikiList(){
   var t=new Date(), jobs=[];
@@ -736,13 +753,17 @@ function wikiList(){
     jobs.push(fetch('https://en.wikipedia.org/api/rest_v1/feed/featured/'+y+'/'+m+'/'+dd).then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; })); }
   return Promise.all(jobs).then(function(rs){ var out=[], seen={}; rs.forEach(function(j){ var a=j&&j.tfa; if(a && !seen[a.title]){ seen[a.title]=1; out.push({id:'w:'+a.title,wtitle:a.title,title:(a.titles&&a.titles.normalized)||a.title,trail:(a.extract||'').slice(0,180),src:'Wikipedia · مقالة مختارة',date:'',url:a.content_urls&&a.content_urls.desktop.page,words:0}); } }); return out; });
 }
+var UPD={}, prefetched=false;
+function prefetchAll(){ if(prefetched||!navigator.onLine) return; prefetched=true; CATS.forEach(function(c){ if(['guardian','wiki','mine'].indexOf(c[0])<0) fetch('articles/'+c[0]+'.json',{cache:'no-cache'}).catch(function(){}); }); }
 function renderRead(){
+  prefetchAll();
   var box=$('arts'); $('pastebox').hidden=curCat!=='mine';
   $('credit').textContent = curCat==='wiki' ? 'المحتوى من ويكيبيديا (CC BY-SA).' : curCat==='mine' ? '' : curCat==='guardian' ? 'من The Guardian عبر واجهتها المفتوحة بمفتاحك الخاص.' : 'مقالات كاملة من مصادر تسمح بإعادة النشر (The Conversation وGlobal Voices وProPublica)، تُحدَّث كل 6 ساعات، مع رابط المصدر في كل مقال.';
   box.innerHTML='<p class="empty">جارٍ التحميل…</p>';
   var cat=curCat;
   loadCat(cat).then(function(list){
     if(cat!==curCat) return; box.innerHTML='';
+    if(UPD[cat]){ var u=document.createElement('p'); u.className='muted'; u.style.margin='0'; var dt=new Date(UPD[cat]+'Z'); u.textContent='آخر تحديث: '+(isNaN(dt)?UPD[cat]:dt.toLocaleString('ar',{dateStyle:'medium',timeStyle:'short'})); box.appendChild(u); }
     if(!list.length){ box.innerHTML='<p class="empty">'+(cat==='mine'?'لا توجد نصوص بعد. الصق نصًّا أعلاه.':'لا توجد مقالات الآن.')+'</p>'; return; }
     list.forEach(function(a){
       var b=document.createElement('button'); b.className='art'+(P.read[a.id]?' read':'');
@@ -856,6 +877,38 @@ $('sh-add').addEventListener('click',function(){
   toast('أُضيفت «'+lemma+'» إلى كلماتي'); closeSheet(); recolor();
 });
 $('sh-known').addEventListener('click',function(){ var n=norm($('sh-word').textContent); KNOWN[n]=1; var l=$('sh-lemma').value.trim().toLowerCase(); if(l) KNOWN[l]=1; saveKnown(); closeSheet(); recolor(); });
+
+/* ---------- book page viewer (user's own PDF, stored only on this device) ---------- */
+var curPage=0, pdfDoc=null, pdfDeck=null, vPage=0, pdfWant=null;
+function loadPdfLib(){ return window.pdfjsLib ? Promise.resolve(window.pdfjsLib) : new Promise(function(res,rej){ var sc=document.createElement('script'); sc.src='lib/pdf.min.js'; sc.onload=function(){ window.pdfjsLib.GlobalWorkerOptions.workerSrc='lib/pdf.worker.min.js'; res(window.pdfjsLib); }; sc.onerror=rej; document.head.appendChild(sc); }); }
+function getPdf(deckId){
+  if(pdfDoc && pdfDeck===deckId) return Promise.resolve(pdfDoc);
+  return new Promise(function(res){ if(!idb) return res(null); try{ var g=idb.transaction('pdfs').objectStore('pdfs').get(deckId); g.onsuccess=function(){ res(g.result||null); }; g.onerror=function(){ res(null); }; }catch(e){ res(null); } })
+    .then(function(rec){ if(!rec) return null; return loadPdfLib().then(function(lib){ return lib.getDocument({data:new Uint8Array(rec.data)}).promise; }).then(function(doc){ pdfDoc=doc; pdfDeck=deckId; return doc; }); });
+}
+function openPage(deckId, page){
+  $('viewer').hidden=false; $('v-msg').hidden=true; $('v-canvas').hidden=false; $('v-lbl').textContent='جارٍ التحميل…';
+  getPdf(deckId).then(function(doc){
+    if(!doc){ $('v-canvas').hidden=true; $('v-msg').hidden=false; $('v-msg').textContent='لم تُرفق ملف الكتاب بعد. اضغط «أرفق ملف الكتاب» واختر ملف PDF من جهازك (مرة واحدة فقط، ويبقى على جهازك).'; $('v-lbl').textContent=''; showAttach(deckId,page); return; }
+    vPage=Math.min(Math.max(1,page),doc.numPages); renderPage();
+  }).catch(function(){ $('v-canvas').hidden=true; $('v-msg').hidden=false; $('v-msg').textContent='تعذّر فتح ملف الكتاب.'; });
+}
+function showAttach(deckId,page){ var b=document.createElement('button'); b.className='big'; b.style.marginTop='12px'; b.textContent='أرفق ملف الكتاب'; b.addEventListener('click',function(){ pdfWant={d:deckId,p:page}; $('pdfin').click(); }); $('v-msg').appendChild(document.createElement('br')); $('v-msg').appendChild(b); }
+function renderPage(){
+  $('v-lbl').textContent='صفحة '+vPage+' / '+pdfDoc.numPages;
+  pdfDoc.getPage(vPage).then(function(pg){ var w=Math.min(900,$('v-body').clientWidth-24), vp0=pg.getViewport({scale:1}), sc=w/vp0.width*(window.devicePixelRatio||1), vp=pg.getViewport({scale:sc}), cv=$('v-canvas'); cv.width=vp.width; cv.height=vp.height; cv.style.width=(vp.width/(window.devicePixelRatio||1))+'px'; return pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise; });
+}
+$('v-prev').addEventListener('click',function(){ if(pdfDoc&&vPage>1){ vPage--; renderPage(); } });
+$('v-next').addEventListener('click',function(){ if(pdfDoc&&vPage<pdfDoc.numPages){ vPage++; renderPage(); } });
+$('v-close').addEventListener('click',function(){ $('viewer').hidden=true; });
+$('srcopen').addEventListener('click',function(){ if(cur) openPage(cur.d, curPage); });
+$('deck-pdf').addEventListener('click',function(){ pdfWant={d:curDeck,p:0}; $('pdfin').click(); });
+$('pdfin').addEventListener('change',function(){
+  var f=this.files&&this.files[0]; this.value=''; if(!f||!pdfWant) return; var want=pdfWant; pdfWant=null;
+  toast('جارٍ حفظ الملف على جهازك…');
+  f.arrayBuffer().then(function(buf){ return dbPut('pdfs',{id:want.d,name:f.name,data:buf}); }).then(function(){ pdfDoc=null; pdfDeck=null; toast('حُفظ ملف الكتاب على جهازك'); if(view==='deck') renderDeck(); if(want.p) openPage(want.d,want.p); });
+});
+function pdfStatus(deckId){ return new Promise(function(res){ if(!idb) return res(null); try{ var g=idb.transaction('pdfs').objectStore('pdfs').getKey(deckId); g.onsuccess=function(){ res(g.result||null); }; g.onerror=function(){ res(null); }; }catch(e){ res(null); } }); }
 
 /* ---------- search ---------- */
 function nz(s){ return s.replace(/[ً-ْـ]/g,'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').toLowerCase(); }
