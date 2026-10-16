@@ -8,15 +8,6 @@
    "file": "sira-oudah.json",
    "cards": 1090,
    "order": 1
-  },
-  {
-   "id": "en-vocab",
-   "v": 1,
-   "title": "الإنجليزي للعمل والحياة",
-   "author": "مفردات متوسطة إلى متقدمة · مع النطق والأمثلة",
-   "file": "en-vocab.json",
-   "cards": 548,
-   "order": 2
   }
  ]
 }
