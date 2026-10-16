@@ -712,7 +712,7 @@ $('sayq').addEventListener('click',function(){ speak($('q').textContent); });
 $('sayex').addEventListener('click',function(){ speak($('extx').textContent); });
 
 /* ---------- reading (Guardian, Wikipedia, pasted texts) ---------- */
-var CATS=[['world','العالم'],['politics','سياسة'],['business','اقتصاد وأعمال'],['technology','تقنية'],['science','علوم وصحة'],['environment','بيئة'],['culture','ثقافة وفنون'],['education','تعليم'],['investigations','تحقيقات'],['guardian','The Guardian'],['wiki','موسوعة'],['mine','نصوصي']];
+var CATS=[['world','العالم'],['politics','سياسة'],['business','اقتصاد وأعمال'],['technology','تقنية'],['science','صحة وعلوم'],['environment','بيئة'],['culture','ثقافة وفنون'],['education','تعليم'],['investigations','تحقيقات'],['guardian','The Guardian'],['wiki','موسوعة'],['mine','نصوصي']];
 var curCat='world', ARTS={}, curArt=null;
 (function(){ var box=$('cats'); CATS.forEach(function(c){ var b=document.createElement('button'); b.textContent=c[1]; b.dataset.cat=c[0]; b.setAttribute('aria-pressed',String(c[0]===curCat)); b.addEventListener('click',function(){ curCat=c[0]; box.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed',String(x.dataset.cat===curCat)); }); renderRead(); }); box.appendChild(b); }); })();
 function gkey(){ return P.gkey||'test'; }
