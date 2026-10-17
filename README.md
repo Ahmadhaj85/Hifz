@@ -20,3 +20,10 @@ Plain-text decks can also be imported from the app (Library → Import):
 ? question || answer
 ```
 Progress lives on the device (localStorage); decks in IndexedDB. Library → Backup exports both.
+
+## Reviewing saved words (for Claude)
+The user exports `hifz-words-YYYY-MM-DD.json` from Library → «أرسل كلماتي إلى Claude للمراجعة»:
+`{"type":"hifz-words","v":1,"words":[{"id","word","meaning","example","pos","reviews","lapses"}]}`.
+Review each meaning against its example sentence (Arabic meaning must fit the context; base form; pos), then return a file with
+the same shape containing only corrected/added entries (keep `id`), plus optional `"remove":[ids]`. The user imports it via
+Library → «استيراد ملف»; entries are merged by id (or by word), progress is kept.

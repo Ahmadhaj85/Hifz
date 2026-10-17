@@ -297,8 +297,10 @@ mark{background:var(--gold-soft);color:inherit;border-radius:3px}
         <input type="text" id="cfg-gkey" placeholder="الصق المفتاح هنا" dir="ltr" autocomplete="off">
       </label>
       <p class="muted">التقدّم وكلماتك محفوظة على هذا الجهاز. احفظ نسخة احتياطية من حين لآخر.</p>
+      <p class="muted">لمراجعة ترجمات كلماتك: اضغط «أرسل كلماتي إلى Claude» واختر تطبيق Claude من قائمة المشاركة، ثم استورد الملف المصحّح الذي يعيده لك عبر «استيراد ملف».</p>
       <div class="row">
         <button class="ghost" id="exp-btn">حفظ نسخة احتياطية</button>
+        <button class="ghost" id="words-btn">أرسل كلماتي إلى Claude للمراجعة</button>
         <button class="ghost" id="res-btn">استعادة نسخة</button>
       </div>
     </div>
@@ -547,6 +549,7 @@ $('imp').addEventListener('change',function(){
   var f=this.files&&this.files[0]; this.value=''; if(!f) return;
   f.text().then(function(txt){
     var obj=null; try{ obj=JSON.parse(txt); }catch(e){}
+    if(obj && obj.type==='hifz-words'){ applyWords(obj); return; }
     if(obj && obj.v===2 && obj.d){
       if(obj.decksInline) obj.decksInline.forEach(function(d){ if(validDeck(d)){ addDeck(d); dbPut('decks',d); } });
       if(obj.known){ KNOWN=obj.known; saveKnown(); }
@@ -558,6 +561,31 @@ $('imp').addEventListener('change',function(){
     d.src='file'; d.v=d.v||Date.now(); var isNew=!LIB[d.id]; addDeck(d); dbPut('decks',stripIdx(d)).then(function(){ save(); toast((isNew?'أُضيف: ':'حُدّث: ')+d.title+' ('+d.cards.length+' بطاقة)'); renderLib(); });
   });
 });
+function shareJSON(data,name){
+  var blob=new Blob([JSON.stringify(data,null,1)],{type:'application/json'});
+  var file=null; try{ file=new File([blob],name,{type:'application/json'}); }catch(e){}
+  if(file && navigator.canShare && navigator.canShare({files:[file]})){ navigator.share({files:[file],title:name}).catch(function(){}); return; }
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1000);
+}
+$('words-btn').addEventListener('click',function(){
+  var d=LIB[MY]; if(!d||!d.cards.length){ toast('لا توجد كلمات محفوظة بعد'); return; }
+  var dp=DP(MY);
+  shareJSON({type:'hifz-words',v:1,exported:new Date().toISOString(),words:d.cards.map(function(c){ var s=dp.s[c[0]]; return {id:c[0],word:c[1],meaning:c[2],example:c[3]||'',pos:c[4]||'',reviews:s?s[3]:0,lapses:s?s[4]:0}; })}, 'hifz-words-'+new Date().toISOString().slice(0,10)+'.json');
+});
+function applyWords(obj){
+  var d=myDeck(), n=0, added=0, removed=0;
+  (obj.words||[]).forEach(function(w){
+    if(!w||!w.word) return;
+    var i=w.id? d.byId[w.id] : undefined; if(i===undefined) i=d.cards.findIndex(function(c){ return c[1].toLowerCase()===String(w.word).toLowerCase(); });
+    if(i!==undefined && i>=0){ var c=d.cards[i]; if(w.word) c[1]=w.word; if(w.meaning!=null) c[2]=w.meaning; if(w.example!=null) c[3]=w.example; if(w.pos!=null) c[4]=w.pos; n++; }
+    else { d.ch[0].secs[0].c.push(d.cards.length); d.cards.push([w.id||'w'+hash(String(w.word).toLowerCase()), w.word, w.meaning||'—', w.example||'', w.pos||'']); added++; }
+  });
+  (obj.remove||[]).forEach(function(id){ var i=d.byId[id]; if(i===undefined) return; d.cards[i]=null; removed++; delete DP(MY).s[id]; });
+  if(removed){ d.cards=d.cards.filter(Boolean); d.ch[0].secs[0].c=d.cards.map(function(_,k){ return k; }); }
+  d.ch[0].secs[0].b=d.cards.map(function(c){ return c[1]+' — '+c[2]; });
+  index(d); dbPut('decks',stripIdx(d)); rebuildMySet(); save();
+  toast('حُدّثت كلماتك: '+n+' مصحّحة، '+added+' مضافة، '+removed+' محذوفة'); renderAll();
+}
 $('exp-btn').addEventListener('click',function(){
   var data=JSON.parse(JSON.stringify(P)); data.known=KNOWN;
   data.decksInline=ORDER.filter(function(id){ return LIB[id].src!=='remote'; }).map(function(id){ return stripIdx(LIB[id]); });
