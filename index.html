@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>مكتبة الحفظ</title>
 <meta name="theme-color" content="#0E6655">
+<meta name="referrer" content="no-referrer">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -146,6 +147,8 @@ details.ctx ul{margin:.5em 0 0;padding-inline-start:1.2em;font-family:var(--f-te
 .sheet .defs{direction:ltr;text-align:left;font-family:var(--f-en);font-size:.95rem;color:var(--muted);margin:0;padding-left:1.1em}
 .sheet label{font-size:.82rem;color:var(--muted);display:flex;flex-direction:column;gap:4px}
 .sheet input{width:100%}
+.meanrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.mchip{font:inherit;font-family:var(--f-text);font-size:.95rem;padding:3px 10px;border-radius:16px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
 .finish{display:flex;flex-direction:column;gap:10px;align-items:stretch;direction:rtl;text-align:right;border-top:1px dashed var(--line);padding-top:16px;margin-top:8px}
 /* summary reader */
 .search{width:100%;font:inherit;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--paper);color:var(--ink)}
@@ -340,9 +343,11 @@ mark{background:var(--gold-soft);color:inherit;border-radius:3px}
   <ol class="defs" id="sh-defs"></ol>
   <label for="sh-lemma">الكلمة كما تُحفظ (يمكنك تعديلها إلى أصلها، مثل achieved ← achieve)
     <input type="text" id="sh-lemma" dir="ltr" autocomplete="off"></label>
-  <label for="sh-mean">المعنى بالعربي
+  <label for="sh-mean">المعنى بالعربي (اضغط معنى من الاقتراحات أدناه لاختياره)
     <input type="text" id="sh-mean" dir="rtl" autocomplete="off" placeholder="جارٍ الترجمة…"></label>
+  <div id="sh-means" style="display:flex;flex-direction:column;gap:6px"></div>
   <p class="ex" id="sh-ctx" style="font-size:.9rem"></p>
+  <p class="muted" id="sh-ctxtr" style="margin:0;font-family:var(--f-text)"></p>
   <div class="row">
     <button class="big" id="sh-add" style="flex:2">أضف إلى كلماتي</button>
     <button class="ghost" id="sh-known" style="flex:1">أعرفها</button>
@@ -724,7 +729,18 @@ document.addEventListener('keydown',function(e){
 var enVoice=null;
 function pickVoice(){ try{ var vs=speechSynthesis.getVoices(); enVoice=vs.filter(function(v){return /^en[-_]US/i.test(v.lang);})[0]||vs.filter(function(v){return /^en/i.test(v.lang);})[0]||null; }catch(e){} }
 try{ pickVoice(); speechSynthesis.onvoiceschanged=pickVoice; }catch(e){}
-function speak(t){ try{ speechSynthesis.cancel(); var u=new SpeechSynthesisUtterance(t.replace(/\s*\(.*?\)\s*/g,' ')); u.lang='en-US'; if(enVoice) u.voice=enVoice; u.rate=0.9; speechSynthesis.speak(u); }catch(e){} }
+function speakDevice(t){ try{ speechSynthesis.cancel(); var u=new SpeechSynthesisUtterance(t); u.lang='en-US'; if(enVoice) u.voice=enVoice; u.rate=0.9; speechSynthesis.speak(u); }catch(e){} }
+var gAudio=null, gVoiceOk=true;
+function speak(t){
+  t=t.replace(/\s*\(.*?\)\s*/g,' ').trim(); if(!t) return;
+  if(!gVoiceOk || !navigator.onLine || t.length>190){ speakDevice(t); return; }
+  try{ if(gAudio) gAudio.pause(); speechSynthesis.cancel(); }catch(e){}
+  var done=false, a=new Audio('https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q='+encodeURIComponent(t)); gAudio=a;
+  function fail(){ if(done) return; done=true; gVoiceOk=false; speakDevice(t); }
+  a.onerror=fail; var to=setTimeout(fail,2500);
+  a.onplaying=function(){ done=true; clearTimeout(to); };
+  var pr=a.play(); if(pr && pr.catch) pr.catch(function(e){ if(e && e.name==='NotAllowedError'){ done=true; clearTimeout(to); } else fail(); });
+}
 $('sayq').addEventListener('click',function(){ speak($('q').textContent); });
 $('sayex').addEventListener('click',function(){ speak($('extx').textContent); });
 
@@ -844,8 +860,14 @@ function sentenceOf(span){
   return txt.slice(st,en).trim().slice(0,300);
 }
 var TRC={};
+function gtx(q, dict){
+  return fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ar&dj=1&dt=t'+(dict?'&dt=bd&dt=rm':'')+'&q='+encodeURIComponent(q)).then(function(r){ if(!r.ok) throw r.status; return r.json(); });
+}
 function translate(t){
   if(TRC[t]) return Promise.resolve(TRC[t]);
+  return gtx(t.slice(0,4500)).then(function(j){ var o=(j.sentences||[]).map(function(x){ return x.trans||''; }).join('').trim(); if(!o) throw 0; TRC[t]=o; return o; }).catch(function(){ return translateMM(t); });
+}
+function translateMM(t){
   var chunks=[], cur2='';
   (t.match(/[^.!?]+[.!?]*\s*/g)||[t]).forEach(function(s){ s=s.trim(); if((cur2+' '+s).length>450){ if(cur2) chunks.push(cur2); cur2=s.slice(0,450); } else cur2=cur2?cur2+' '+s:s; }); if(cur2) chunks.push(cur2);
   return Promise.all(chunks.map(function(c){ return fetch('https://api.mymemory.translated.net/get?langpair=en|ar&q='+encodeURIComponent(c)).then(function(r){ return r.json(); }).then(function(j){ return (j && j.responseData && j.responseData.translatedText)||''; }).catch(function(){ return ''; }); }))
@@ -858,7 +880,7 @@ function openSheet(word, ctx){
   $('sh-add').textContent=mine?'حدّث المعنى في كلماتي':'أضف إلى كلماتي';
   $('sheet').hidden=false; speak(word);
   var lemma=$('sh-lemma').value;
-  if(!mine) translate(lemma).then(function(x){ if($('sh-lemma').value===lemma && !$('sh-mean').value) $('sh-mean').value=x; });
+  lookupWord(lemma, !mine);
   fetch('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(lemma)).then(function(r){ return r.ok?r.json():null; }).then(function(j){
     if(!j||!j[0]) return; var e=j[0]; $('sh-phon').textContent=(e.phonetic||'');
     var ol=$('sh-defs'); var cnt=0; (e.meanings||[]).forEach(function(m){ if(!sheetPos) sheetPos=m.partOfSpeech; (m.definitions||[]).slice(0,1).forEach(function(d){ if(cnt++<3){ var li=document.createElement('li'); li.textContent='('+m.partOfSpeech+') '+d.definition; ol.appendChild(li); } }); });
@@ -868,7 +890,23 @@ function openSheet(word, ctx){
 function closeSheet(){ $('sheet').hidden=true; if(selSpan){ selSpan.classList.remove('sel'); selSpan=null; } }
 $('sh-close').addEventListener('click',closeSheet);
 $('sh-say').addEventListener('click',function(){ speak($('sh-lemma').value||$('sh-word').textContent); });
-$('sh-lemma').addEventListener('change',function(){ var l=this.value.trim(); if(!l) return; $('sh-mean').value=''; translate(l).then(function(x){ if(!$('sh-mean').value) $('sh-mean').value=x; }); });
+$('sh-lemma').addEventListener('change',function(){ var l=this.value.trim(); if(!l) return; $('sh-mean').value=''; lookupWord(l,true); });
+var POSAR={noun:'اسم',verb:'فعل',adjective:'صفة',adverb:'ظرف',preposition:'حرف جرّ',conjunction:'أداة ربط',pronoun:'ضمير',interjection:'تعجّب',abbreviation:'اختصار',phrase:'تعبير'};
+function lookupWord(lemma, fill){
+  var box=$('sh-means'); box.innerHTML=''; $('sh-ctxtr').textContent='';
+  gtx(lemma,true).then(function(j){
+    if($('sh-lemma').value.trim()!==lemma) return;
+    var main=(j.sentences||[]).map(function(x){ return x.trans||''; }).join('').trim();
+    if(fill && main && !$('sh-mean').value) $('sh-mean').value=main;
+    (j.dict||[]).slice(0,3).forEach(function(d){
+      if(!sheetPos) sheetPos=d.pos;
+      var row=document.createElement('div'); row.className='meanrow'; var lb=document.createElement('span'); lb.className='muted'; lb.textContent=(POSAR[d.pos]||d.pos)+':'; row.appendChild(lb);
+      (d.terms||[]).slice(0,5).forEach(function(term){ var b=document.createElement('button'); b.className='mchip'; b.textContent=term; b.addEventListener('click',function(){ var cur=$('sh-mean').value.trim(); $('sh-mean').value = (cur && cur!==main && cur.indexOf(term)<0) ? cur+'، '+term : term; if(!sheetPos||sheetPos!==d.pos) sheetPos=d.pos; }); row.appendChild(b); });
+      box.appendChild(row);
+    });
+  }).catch(function(){ if(fill) translateMM(lemma).then(function(x){ if($('sh-lemma').value.trim()===lemma && !$('sh-mean').value) $('sh-mean').value=x; }); });
+  var ctx=$('sh-ctx').textContent; if(ctx) translate(ctx).then(function(x){ $('sh-ctxtr').textContent=x||''; });
+}
 function recolor(){ document.querySelectorAll('#reader .w').forEach(function(s){ s.className=wordClass(s.textContent); }); }
 $('sh-add').addEventListener('click',function(){
   var lemma=$('sh-lemma').value.trim(), mean=$('sh-mean').value.trim();
