@@ -1,5 +1,5 @@
 {
- "https://globalvoices.org/feed/": 15,
+ "https://globalvoices.org/feed/": "ERR TimeoutError: The read operation timed out",
  "https://theconversation.com/global/articles.atom": 50,
  "https://theconversation.com/us/politics/articles.atom": 25,
  "https://theconversation.com/uk/politics/articles.atom": 25,
